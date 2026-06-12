@@ -1,0 +1,59 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "snipget-client"
+version = "0.1.0"
+description = "Official Python client for the Snipget API: data normalization, parsing, validation, and classification utilities for AI agents."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Snipget Inc.", email = "hello@snipget.ai" }]
+keywords = [
+    "api",
+    "ai-agents",
+    "llm",
+    "data-normalization",
+    "data-validation",
+    "parsing",
+    "healthcare",
+    "npi",
+    "mcp",
+    "agent-tools",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = ["httpx>=0.24.0,<1"]
+
+[project.urls]
+Homepage = "https://snipget.ai"
+Documentation = "https://api.snipget.ai/docs"
+Repository = "https://github.com/snipget/snipget-python"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/snipget"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
