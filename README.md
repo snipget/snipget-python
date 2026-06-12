@@ -2,6 +2,8 @@
 
 The official Python client for [Snipget](https://snipget.ai), the hosted utility API for AI agents: data normalization, parsing, validation, and classification over plain HTTPS.
 
+> **Status: pre-launch.** The hosted API is live but not yet accepting self-serve signups — [join the waitlist at snipget.ai](https://snipget.ai/waitlist) to get an API key at launch.
+
 ## What is Snipget
 
 Snipget is a hosted, pay-per-call utility API built for AI agents and the developers who build them. It serves 130+ programmatic endpoints for data normalization, parsing, validation, and classification, with particular depth in healthcare data: NPI validation and lookup, DEA numbers, provider taxonomy, credentials, and certifications. Every endpoint is deterministic (no LLM calls inside the API), returns a confidence score, and ships in single-record and batch variants.
