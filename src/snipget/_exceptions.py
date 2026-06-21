@@ -21,6 +21,8 @@ __all__ = [
     "QuotaExceededError",
     "RateLimitError",
     "SnipgetError",
+    "UpstreamError",
+    "UpstreamRateLimitedError",
 ]
 
 
@@ -143,3 +145,33 @@ class APIError(SnipgetError):
     """Any other failure: unexpected status codes, 5xx errors, non-JSON
     bodies, and network errors that survived the retry budget
     (``http_status`` is ``None`` for those)."""
+
+
+class UpstreamError(APIError):
+    """503 ``UPSTREAM_UNAVAILABLE`` — an external data source a utility
+    depends on (PubChem, RxNorm, ClinicalTrials.gov, the FX feed, NPPES…)
+    is down, blocking us, or timed out.
+
+    A subclass of :class:`APIError` (it *is* a 5xx), so existing
+    ``except APIError`` handlers keep catching it. Transient and
+    retryable; the client retries it automatically on the short backoff.
+    """
+
+
+class UpstreamRateLimitedError(UpstreamError):
+    """503 ``UPSTREAM_RATE_LIMITED`` — an external data source is throttling
+    Snipget (it returned a 429). The caller's own request rate is fine; this
+    is a service-side throttle, distinct from :class:`RateLimitError`.
+
+    Transient and retryable; the client retries it automatically and honors
+    ``retry_after`` when the upstream supplied one.
+
+    Attributes:
+        retry_after: Seconds to wait before retrying, from the envelope's
+            ``retry_after_seconds`` (preferred) or the ``Retry-After``
+            header. ``None`` if the upstream sent neither.
+    """
+
+    def __init__(self, message: str, *, retry_after: float | None = None, **kwargs: Any) -> None:
+        super().__init__(message, **kwargs)
+        self.retry_after = retry_after

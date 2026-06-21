@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "snipget-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "Official Python client for the Snipget API: data normalization, parsing, validation, and classification utilities for AI agents."
 readme = "README.md"
 license = "MIT"

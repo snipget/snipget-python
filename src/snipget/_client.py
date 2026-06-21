@@ -27,6 +27,8 @@ from snipget._exceptions import (
     QuotaExceededError,
     RateLimitError,
     SnipgetError,
+    UpstreamError,
+    UpstreamRateLimitedError,
 )
 from snipget._response import SnipgetResponse
 from snipget._version import __version__
@@ -169,6 +171,16 @@ def _error_from_response(response: httpx.Response) -> SnipgetError:
             retry_after=_retry_after_seconds(response, body),
             **common,
         )
+    if status == 503 and error_code == "UPSTREAM_RATE_LIMITED":
+        # An external data source is throttling us (it returned a 429). Honor
+        # its Retry-After hint when present — distinct from a generic outage.
+        return UpstreamRateLimitedError(
+            message,
+            retry_after=_retry_after_seconds(response, body),
+            **common,
+        )
+    if status == 503 and error_code == "UPSTREAM_UNAVAILABLE":
+        return UpstreamError(message, **common)
     if status in (401, 403):
         return AuthenticationError(message, **common)
     if status in (400, 422):
@@ -198,12 +210,15 @@ def _is_retryable(error: SnipgetError) -> bool:
 def _retry_delay(error: SnipgetError | None, attempt: int) -> float:
     """Seconds to sleep before retry number ``attempt`` (0-based).
 
-    RATE_LIMITED honors the server's Retry-After (capped). Everything
-    else — network errors, 5xx, maintenance — uses exponential backoff
-    with jitter; we deliberately do NOT honor maintenance's 300s hint
-    here (see MaintenanceError's docstring).
+    RATE_LIMITED and UPSTREAM_RATE_LIMITED honor the server's Retry-After
+    (capped). Everything else — network errors, 5xx, maintenance — uses
+    exponential backoff with jitter; we deliberately do NOT honor
+    maintenance's 300s hint here (see MaintenanceError's docstring).
     """
-    if isinstance(error, RateLimitError) and error.retry_after is not None:
+    if (
+        isinstance(error, (RateLimitError, UpstreamRateLimitedError))
+        and error.retry_after is not None
+    ):
         return min(error.retry_after, _RETRY_AFTER_CAP)
     base = min(_BACKOFF_BASE * (2**attempt), _BACKOFF_CAP)
     return base + random.uniform(0.0, base / 4)

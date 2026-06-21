@@ -6,7 +6,7 @@ The official Python client for [Snipget](https://snipget.ai), the hosted utility
 
 ## What is Snipget
 
-Snipget is a hosted, pay-per-call utility API built for AI agents and the developers who build them. It serves 130+ programmatic endpoints for data normalization, parsing, validation, and classification, with particular depth in healthcare data: NPI validation and lookup, DEA numbers, provider taxonomy, credentials, and certifications. Every endpoint is deterministic (no LLM calls inside the API), returns a confidence score, and ships in single-record and batch variants.
+Snipget is a hosted, pay-per-call utility API built for AI agents and the developers who build them. It serves 130+ programmatic endpoints for data normalization, parsing, validation, and classification, with particular depth in the life sciences: **healthcare** (NPI validation and lookup, DEA numbers, provider taxonomy, credentials, certifications), **chemistry** (compound lookup, CAS and SMILES validation, molecular weight, GHS hazard classification — backed by PubChem), and **biotech** (gene lookup and validation via HGNC, protein lookup via UniProt, drug normalization and synonyms via RxNorm, and clinical-trial lookup via ClinicalTrials.gov). Every endpoint is deterministic (no LLM calls inside the API), returns a confidence score, and ships in single-record and batch variants.
 
 Snipget is agent-native by design. Agents can discover and call it through the [OpenAPI spec](https://api.snipget.ai/openapi.json) or the MCP server, and every response uses one consistent JSON envelope so a single integration covers the whole catalog. This package is a thin HTTP wrapper around that hosted API; all the actual logic runs server-side, and the [interactive docs](https://api.snipget.ai/docs) are the per-endpoint contract.
 
@@ -93,11 +93,17 @@ except snipget.QuotaExceededError as e:
     print("Allowance left (USD):", e.credit_remaining_usd)  # 429 QUOTA_EXCEEDED
 except snipget.MaintenanceError as e:
     print("Maintenance window; retry in", e.retry_after)    # 503 MAINTENANCE_MODE
+except snipget.UpstreamRateLimitedError as e:
+    print("Upstream throttled us; retry in", e.retry_after)  # 503 UPSTREAM_RATE_LIMITED
+except snipget.UpstreamError as e:
+    print("Upstream data source is down:", e.error_code)     # 503 UPSTREAM_UNAVAILABLE
 except snipget.APIError as e:
     print("Server error; quote this id to support:", e.request_id)
 ```
 
 The two 429s mean different things: `RateLimitError` is a per-second throughput throttle and clears in seconds; `QuotaExceededError` means the monthly included calls or prepaid overage allowance are exhausted and will not clear until the monthly reset, a tier upgrade, or an allowance top-up. The client retries the first automatically and never retries the second.
+
+A few utilities call external data sources (PubChem, RxNorm, ClinicalTrials.gov, the FX feed, NPPES). When one of those is down you get an `UpstreamError` (503 `UPSTREAM_UNAVAILABLE`); when one is throttling Snipget you get an `UpstreamRateLimitedError` (503 `UPSTREAM_RATE_LIMITED`, carrying `retry_after`) — distinct from `RateLimitError`, because your own request rate is fine. Both subclass `APIError`, so a single `except snipget.APIError` still catches them; both are transient and retried automatically.
 
 ## Retries and timeouts
 
@@ -109,7 +115,7 @@ client = Client(
 )
 ```
 
-The client automatically retries network errors, `RATE_LIMITED` 429s (honoring the server's `Retry-After`), and 5xx responses, using exponential backoff with jitter. Snipget utility calls are pure and idempotent, so retrying a POST is safe. It never retries `QUOTA_EXCEEDED` or any other 4xx. Maintenance 503s are retried on the short backoff only; if the window outlasts the retry budget you get a `MaintenanceError` with `retry_after` (typically 300 seconds) so you can schedule your own retry.
+The client automatically retries network errors, `RATE_LIMITED` and `UPSTREAM_RATE_LIMITED` (honoring the server's `Retry-After`), and 5xx responses (including `UPSTREAM_UNAVAILABLE`), using exponential backoff with jitter. Snipget utility calls are pure and idempotent, so retrying a POST is safe. It never retries `QUOTA_EXCEEDED` or any other 4xx. Maintenance 503s are retried on the short backoff only; if the window outlasts the retry budget you get a `MaintenanceError` with `retry_after` (typically 300 seconds) so you can schedule your own retry.
 
 ## The response envelope
 

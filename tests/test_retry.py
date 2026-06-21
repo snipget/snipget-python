@@ -46,6 +46,29 @@ def test_rate_limited_then_success_is_retried_honoring_retry_after(sleeps):
     assert sleeps == [1.5]  # envelope value, not the rounded-up header
 
 
+def test_upstream_rate_limited_then_success_honors_retry_after(sleeps):
+    """An external source throttling us (UPSTREAM_RATE_LIMITED) is retried
+    automatically, honoring the upstream's Retry-After hint — like our own
+    RATE_LIMITED, unlike a generic outage's exponential backoff."""
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        if len(calls) == 1:
+            return respond_json(
+                error_envelope("UPSTREAM_RATE_LIMITED", retry_after_seconds=3.0),
+                503,
+                headers={"Retry-After": "3"},
+            )
+        return respond_json(success_envelope())
+
+    resp = make_client(handler).call(PATH, PAYLOAD)
+
+    assert resp.status == "ok"
+    assert len(calls) == 2
+    assert sleeps == [3.0]  # the upstream hint, not exponential backoff
+
+
 def test_quota_exceeded_is_never_retried(sleeps):
     """Retrying QUOTA_EXCEEDED can never succeed (monthly capacity);
     burning retries on it would just add latency and log noise."""

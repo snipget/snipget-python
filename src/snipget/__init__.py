@@ -21,6 +21,8 @@ from snipget._exceptions import (
     QuotaExceededError,
     RateLimitError,
     SnipgetError,
+    UpstreamError,
+    UpstreamRateLimitedError,
 )
 from snipget._response import ResponseMeta, SnipgetResponse
 from snipget._version import __version__
@@ -37,5 +39,7 @@ __all__ = [
     "ResponseMeta",
     "SnipgetError",
     "SnipgetResponse",
+    "UpstreamError",
+    "UpstreamRateLimitedError",
     "__version__",
 ]

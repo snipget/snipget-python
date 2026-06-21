@@ -166,16 +166,52 @@ def test_503_maintenance_mode_maps_with_retry_after():
     assert exc_info.value.retry_after == 300.0
 
 
-def test_503_non_maintenance_maps_to_api_error():
-    """Other 503s (UPSTREAM_UNAVAILABLE, BILLING_UNAVAILABLE) are not
-    maintenance windows."""
-    client = _client_returning(503, error_envelope("UPSTREAM_UNAVAILABLE"))
+def test_503_other_maps_to_plain_api_error():
+    """A non-maintenance, non-upstream 503 (e.g. BILLING_UNAVAILABLE) is the
+    generic APIError, not a more specific subclass."""
+    client = _client_returning(503, error_envelope("BILLING_UNAVAILABLE"))
 
     with pytest.raises(snipget.APIError) as exc_info:
         client.call(PATH, PAYLOAD)
 
-    assert not isinstance(exc_info.value, snipget.MaintenanceError)
-    assert exc_info.value.error_code == "UPSTREAM_UNAVAILABLE"
+    err = exc_info.value
+    assert not isinstance(err, (snipget.MaintenanceError, snipget.UpstreamError))
+    assert err.error_code == "BILLING_UNAVAILABLE"
+
+
+def test_503_upstream_unavailable_maps_to_upstream_error():
+    """An external data source being down is UPSTREAM_UNAVAILABLE → UpstreamError
+    (a subclass of APIError, so `except APIError` still catches it)."""
+    client = _client_returning(503, error_envelope("UPSTREAM_UNAVAILABLE"))
+
+    with pytest.raises(snipget.UpstreamError) as exc_info:
+        client.call(PATH, PAYLOAD)
+
+    err = exc_info.value
+    assert isinstance(err, snipget.APIError)  # backward-compatible catch
+    assert not isinstance(err, snipget.UpstreamRateLimitedError)
+    assert err.error_code == "UPSTREAM_UNAVAILABLE"
+
+
+def test_503_upstream_rate_limited_maps_with_retry_after():
+    """An external source throttling us is UPSTREAM_RATE_LIMITED →
+    UpstreamRateLimitedError carrying the upstream's Retry-After hint —
+    distinct from our own RateLimitError (the caller's rate is fine)."""
+    body = error_envelope(
+        "UPSTREAM_RATE_LIMITED",
+        "RxNorm is rate-limiting requests right now.",
+        retry_after_seconds=5,
+    )
+    client = _client_returning(503, body, headers={"Retry-After": "5"})
+
+    with pytest.raises(snipget.UpstreamRateLimitedError) as exc_info:
+        client.call(PATH, PAYLOAD)
+
+    err = exc_info.value
+    assert isinstance(err, snipget.UpstreamError)  # and therefore APIError
+    assert not isinstance(err, snipget.RateLimitError)  # NOT our own throttle
+    assert err.error_code == "UPSTREAM_RATE_LIMITED"
+    assert err.retry_after == 5.0
 
 
 def test_500_internal_error_maps_to_api_error():
@@ -223,5 +259,7 @@ def test_all_typed_errors_are_snipget_errors():
         snipget.QuotaExceededError,
         snipget.MaintenanceError,
         snipget.APIError,
+        snipget.UpstreamError,
+        snipget.UpstreamRateLimitedError,
     ):
         assert issubclass(exc_type, snipget.SnipgetError)
