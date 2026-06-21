@@ -143,7 +143,7 @@ Meta fields the server didn't send are `None`; unknown future fields stay availa
 - Website: [https://snipget.ai](https://snipget.ai)
 - Interactive API docs: [https://api.snipget.ai/docs](https://api.snipget.ai/docs)
 - OpenAPI spec: [https://api.snipget.ai/openapi.json](https://api.snipget.ai/openapi.json)
-- npm sibling: a JavaScript/TypeScript client (`snipget` on npm) is planned but not yet published
+- npm sibling: [`snipget` on npm](https://www.npmjs.com/package/snipget) — the official JavaScript/TypeScript client
 
 ## License
 
