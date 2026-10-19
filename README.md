@@ -8,7 +8,7 @@ The official Python client for [Snipget](https://snipget.ai), the hosted utility
 
 ## What is Snipget
 
-Snipget is a hosted, pay-per-call utility API built for AI agents and the developers who build them. It serves 300+ programmatic endpoints for data normalization, parsing, validation, and classification, with particular depth in the life sciences: **healthcare** (NPI validation and lookup, DEA numbers, provider taxonomy, credentials, certifications), **chemistry** (compound lookup, CAS and SMILES validation, molecular weight, GHS hazard classification — backed by PubChem), and **biotech** (gene lookup and validation via HGNC, protein lookup via UniProt, drug normalization and synonyms via RxNorm, and clinical-trial lookup via ClinicalTrials.gov). Every endpoint is deterministic (no LLM calls inside the API), returns a confidence score, and ships in single-record and batch variants.
+Snipget is a hosted, usage-based utility API built for AI agents and the developers who build them. It serves 300+ programmatic endpoints for data normalization, parsing, validation, and classification, with particular depth in the life sciences: **healthcare** (NPI validation and lookup, DEA numbers, provider taxonomy, credentials, certifications), **chemistry** (compound lookup, CAS and SMILES validation, molecular weight, GHS hazard classification — backed by PubChem), and **biotech** (gene lookup and validation via HGNC, protein lookup via UniProt, drug normalization and synonyms via RxNorm, and clinical-trial lookup via ClinicalTrials.gov). Every endpoint is deterministic (no LLM calls inside the API), returns a confidence score, and ships in single-record and batch variants.
 
 Snipget is agent-native by design. Agents can discover and call it through the [OpenAPI spec](https://api.snipget.ai/openapi.json) or the MCP server, and every response uses one consistent JSON envelope so a single integration covers the whole catalog. This package is a thin HTTP wrapper around that hosted API; all the actual logic runs server-side, and the [interactive docs](https://api.snipget.ai/docs) are the per-endpoint contract.
 
@@ -103,7 +103,7 @@ except snipget.APIError as e:
     print("Server error; quote this id to support:", e.request_id)
 ```
 
-The two 429s mean different things: `RateLimitError` is a per-second throughput throttle and clears in seconds; `QuotaExceededError` means the monthly included calls or prepaid overage allowance are exhausted and will not clear until the monthly reset, a tier upgrade, or an allowance top-up. The client retries the first automatically and never retries the second.
+The two 429s mean different things: `RateLimitError` is a per-second throughput throttle and clears in seconds; `QuotaExceededError` means the monthly included cost units or prepaid overage allowance are exhausted and will not clear until the monthly reset, a tier upgrade, or an allowance top-up. The client retries the first automatically and never retries the second.
 
 A few utilities call external data sources (PubChem, RxNorm, ClinicalTrials.gov, the FX feed, NPPES). When one of those is down you get an `UpstreamError` (503 `UPSTREAM_UNAVAILABLE`); when one is throttling Snipget you get an `UpstreamRateLimitedError` (503 `UPSTREAM_RATE_LIMITED`, carrying `retry_after`) — distinct from `RateLimitError`, because your own request rate is fine. Both subclass `APIError`, so a single `except snipget.APIError` still catches them; both are transient and retried automatically.
 
@@ -128,12 +128,12 @@ Every Snipget endpoint, success or error, returns one envelope shape. `call()` r
 | `result` | endpoint-specific | The payload, exactly as the API returned it |
 | `confidence` | `float` | 0.0-1.0 confidence score (1.0 = deterministic match; batch responses always report 1.0 at the top level, with per-item confidences inside `result.items`) |
 | `status` | `str` | `"ok"` on success |
-| `meta.cost_units` | `int` | Billable units consumed by this call |
+| `meta.cost_units` | `int` | Cost units charged for this call: one per item processed (a batch of N items = N; live-registry lookups bill 2 per item). A call is one request; cost units are what your plan includes |
 | `meta.request_id` | `str` | Server request id; quote it to support |
 | `meta.elapsed_ms` | `int` | Server-side processing time |
 | `meta.version` | `str` | API version |
 | `meta.rate_limit_remaining` / `meta.rate_limit_reset` | `int` | Throughput headroom and bucket reset (unix time) |
-| `meta.quota_remaining` / `meta.quota_reset` | `int` | Monthly included-call headroom and reset (unix time) |
+| `meta.quota_remaining` / `meta.quota_reset` | `int` | Cost units left in the monthly included bucket, and its reset (unix time) |
 | `meta.credit_remaining_usd` | `float` | Live prepaid-allowance balance, populated once a call starts burning allowance |
 | `meta.trace` | `list[str]` | Reasoning trace, when the request set `include_trace: true` |
 | `raw` | `dict` | The full unmodified envelope |
